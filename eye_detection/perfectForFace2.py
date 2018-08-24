@@ -134,16 +134,11 @@ while True:
                 
         #Heart part
         i = 0
-        
-        #Debug
-        #cv2.waitKey(0)
-        
         for eye in eyesLoc:
             
             #Preprocessing
-            roi_gray_e = roi_gray1[eye['y']+(eye['h']*0.25):eye['y']+(eye['h']*0.75), eye['x']+(eye['w']*0.1):eye['x']+(eye['w']*0.9)]
-            (w1, h1) = roi_gray_e.shape[:2]
-            roi_gray_e = cv2.resize(roi_gray_e, (100*h1/w1, 100))
+            roi_gray_e = roi_gray1[eye['y']:eye['y']+eye['h'], eye['x']:eye['x']+eye['w']]
+            roi_gray_e = cv2.resize(roi_gray_e, (100, 100*w/h))
             if(eye['x'] > (faceLocation['w']/3)):       #fixing which eye
                 i = 1
             else:
@@ -153,17 +148,18 @@ while True:
             #print(eye['x'], (faceLocation['w'])/3 , i)
             
             #Thresholding
-            #roi_gray_e = cv2.equalizeHist(roi_gray_e)
-            ret,gray_t = cv2.threshold(roi_gray_e,90,255,cv2.THRESH_BINARY_INV)
+            ret,gray_t = cv2.threshold(roi_gray_e,80,255,cv2.THRESH_BINARY)
             gray_t = 255-gray_t
             (gw, gh) = gray_t.shape[:2]
+            #cv2.imshow("Eye", roi_gray_e)
+            #cv2.waitKey(0)
+            #cv2.imshow("Eye", gray_t)
+            #cv2.waitKey(0)
             
             #Finding vertical histogram and max width
             img_row_sum = np.sum(gray_t,axis=1).tolist()
             start,end,maxIn,opened,dataFlag,storeS,storeE,x = 0, 0, 0, 0, 0, 0, 0, 0
             for p in range(len(img_row_sum)):
-                #if p < 0.2*len(img_row_sum) or p > 0.8*len(img_row_sum):
-                #    continue
                 if img_row_sum[p] - x > 0 and start == 0:
                     opened = 1
                     start = p-1
@@ -179,7 +175,7 @@ while True:
                 #    continue
                 if dataFlag == 1:
                     diff = end - start
-                    #if start == -1 or (float(diff)*100)/float(len(img_row_sum)) > 60:
+                    #if start == -1 or (float(diff)*100)/float(len(img_row_sum)) > 60):
                     #    x += 100
                     #    start = 0
                     #    end = 0
@@ -191,24 +187,16 @@ while True:
                         storeE = end
                         start = 0
                         end = 0
-                      
-                 
-            cv2.imshow("1"+str(i), roi_gray_e)
-            cv2.waitKey(0)       
-            cv2.imshow("2"+str(i), gray_t)
-            cv2.waitKey(0)
-            
-            
+                        
             #Eliminate unwanted regions and find B-W ratio
             for p in range(len(img_row_sum)):
                 if p < storeS or p > storeE:
                     img_row_sum[p] = 0
-                    gray_t[p] = 0
                 else:
                     img_row_sum[p] += x
             sumOfWhite = sum(img_row_sum)/255
             sumOfBlack = (gh*gw) - sumOfWhite                
-            maxIns[i] = maxIn       
+            maxIns[i] = maxIn            
             
             #Initialization of open and closed eye
             if PRESET[i] == 0:
@@ -217,26 +205,18 @@ while True:
                 realClose[i] = 0.6*realOpen[i]
                 
             #Percentage of one eye
-            try:
-                currentEye[i] = ((maxIn-realClose[i])*100)/(realOpen[i]-realClose[i])
-            except:
-                continue
-                
+            currentEye[i] = ((maxIn-realClose[i])*100)/(realOpen[i]-realClose[i])
+            
             #Updating close eye
             if currentEye[i] < 0:
                 realClose[i] = maxIn
-                try:
-                    currentEye[i] = ((maxIn-realClose[i])*100)/(realOpen[i]-realClose[i])
-                except:
-                    continue
+                currentEye[i] = ((maxIn-realClose[i])*100)/(realOpen[i]-realClose[i])
             percents.append(currentEye[i])
             
             #Debug
             print(i, storeS, storeE, maxIn, currentEye[i])
-            cv2.imshow("3"+str(i), gray_t)
-            cv2.waitKey(0) 
             #plt.plot(img_row_sum)
-            #plt.show()    
+            #plt.show()
             
             #Modifiying open eye with timer
             if MODIFIED[i] == 0 and globalTimer != 0:
@@ -271,9 +251,9 @@ while True:
                 DONE[i] = 1
             
             #Debug
-            #if cv2.waitKey(1) & 0xFF == ord('p'):
-            #    plt.plot(img_row_sum)
-            #    plt.show()
+            if cv2.waitKey(1) & 0xFF == ord('p'):
+                plt.plot(img_row_sum)
+                plt.show()
             
         #Debug
         #cv2.waitKey(0)
@@ -282,11 +262,12 @@ while True:
         #widthTracker.append(eyesLoc[0]['w'] - ((faceLocation['w'])/4))
         
         #Output
-        #cv2.putText(gray ,str(frameC) + " : " + str(int(min(percents))) + '% : ' + str(faceLocation['w']), location, font, fontScale, fontColor, lineType)  
-        #cv2.imshow("Image", gray)
-        cv2.destroyAllWindows()
-        print(str(int(min(percents))) + '%')
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+        cv2.putText(gray ,str(frameC) + " : " + str(int(min(percents))) + '% : ' + str(faceLocation['w']), location, font, fontScale, fontColor, lineType)  
+        cv2.imshow("Image", gray)
+        #cv2.waitKey(0)
+        #cv2.destroyAllWindows()
+        #print(str(int(min(percents))) + '%')
+    if cv2.waitKey(1000/24) & 0xFF == ord('q'):
         break
         
 #Debug        

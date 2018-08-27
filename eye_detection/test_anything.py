@@ -20,12 +20,71 @@ facesLoc = []                   #list of face locations
 
 #Debug
 frameC = 0              
-maxIns = [0, 0]         
+maxIns = [0, 0]        
+
+image = [] 
+fillZero = 0
 
 if not args.get('file', False):
     cap = cv2.VideoCapture(0)             
 else:
     cap = cv2.VideoCapture(args['file'])       
+    
+def cluster(x, y, fillVal, left, right, top, bottom):
+    if y<left or y>right or x<top or x>bottom:
+        fillZero = 1
+        try:
+            image[i][j] = 0
+        except:
+            print("range out of bound")
+    try:
+        image[x][y] = fillVal
+        if image[x+1][y] == 255:
+            cluster(x+1, y, fillVal)
+        if image[x-1][y] == 255:
+            cluster(x-1, y, fillVal)
+        if image[x+1][y+1] == 255:
+            cluster(x+1, y+1, fillVal)
+        if image[x-1][y-1] == 255:
+            cluster(x-1, y-1, fillVal)
+        if image[x][y+1] == 255:
+            cluster(x, y+1, fillVal)
+        if image[x][y-1] == 255:
+            cluster(x, y-1, fillVal)
+        if image[x-1][y+1] == 255:
+            cluster(x-1, y+1, fillVal)
+        if image[x+1][y-1] == 255:
+            cluster(x+1, y-1, fillVal)
+    except:
+        print("range out of bound")
+
+def frameCrunch(img, left, right, top, bottom):
+    image = img
+    img = 0
+    fillVal = 0
+    (w, h) = image.shape[:2]
+    fillZero = 0
+    for i in range(0, h):
+        for j in range(0, w):
+            if image[i][j] == 255:
+                fillVal -= 1
+                cluster(i ,j, fillVal, left, right, top, bottom)
+                if fillZero == 1:
+                    for k in range(0, h):
+                        for l in range(0, w):
+                            if image[k][l] == fillVal:
+                                image[k][l] = 0
+                                
+                    fillZero = 0
+    img = image
+    return img
+
+def clearAll(img, x, y):
+    (w, h) = img.shape[:2]
+    if x<h-1 and y<w-1 and x>0 and y>0:
+        if img[i][j] == 255:
+            
+            return clearAll[i+1]
 
 #Begin
 while True:
@@ -86,32 +145,59 @@ while True:
                 
         i = 0
         for eye in eyesLoc:
-        
-            roi_gray_e = roi_gray[eye['y']:eye['y']+eye['h'], eye['x']:eye['x']+eye['w']]
-            roi_gray_e = cv2.resize(roi_gray_e, (100, 100*w/h))
-            if(eye['x'] > (faceLocation['w']/3)):
-                i = 1
-            else:
-                i = 0
-            
-            ret,gray_t = cv2.threshold(roi_gray_e,110,255,cv2.THRESH_BINARY_INV)
-            gray_t = 255-gray_t
+            roi_gray_e = roi_gray[eye['y']+(eye['h']*0.30):eye['y']+(eye['h']*0.70), eye['x']+(eye['w']*0.15):eye['x']+(eye['w']*0.85)]
+            (w1, h1) = roi_gray_e.shape[:2]
+            roi_gray_e = cv2.resize(roi_gray_e, (100*h1/w1, 100))
+            cv2.imshow("roi_gray_e", roi_gray_e)
+            cv2.waitKey(0)
             equ = cv2.equalizeHist(roi_gray_e)
-            ret,gray_t1 = cv2.threshold(equ,80,255,cv2.THRESH_BINARY)
-            gray_t1 = 255-gray_t1
-            cv2.imshow("eye_"+str(i), roi_gray_e)
+            cv2.imshow("equ", equ)
             cv2.waitKey(0)
-            cv2.imshow("eye_"+str(i), gray_t)
+            #cv2.putText(gray ,str(roi_gray_e.mean()), (10, 20*(i+1)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1) 
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+            cl1 = clahe.apply(roi_gray_e)
+            cv2.imshow("cl1", cl1)
             cv2.waitKey(0)
-            cv2.imshow("eye_"+str(i), equ)
+            cl2 = clahe.apply(equ)
+            cv2.imshow("cl2", cl2)
             cv2.waitKey(0)
-            cv2.imshow("eye_"+str(i), gray_t1)
+            #ret,gray_t_cl1 = cv2.threshold(cl1,40,255,cv2.THRESH_BINARY)
+            #gray_t_cl1 = 255 - gray_t_cl1
+            #cv2.imshow("gray_t_cl1", gray_t_cl1)
+            #cv2.waitKey(0)
+            #ret,gray_t_cl2 = cv2.threshold(cl2,40,255,cv2.THRESH_BINARY)
+            #gray_t_cl2 = 255 - gray_t_cl2
+            #cv2.imshow("gray_t_cl2", gray_t_cl2)
+            #cv2.waitKey(0)
+            ret,gray_t_cl1 = cv2.threshold(cl1,40,255,cv2.THRESH_BINARY)
+            ret,gray_t_cl1I = cv2.threshold(cl1,240,255,cv2.THRESH_BINARY_INV)
+            ret,gray_t_cl2 = cv2.threshold(cl2,40,255,cv2.THRESH_BINARY)
+            ret,gray_t_cl2I = cv2.threshold(cl2,240,255,cv2.THRESH_BINARY_INV)
+            ret,gray_t = cv2.threshold(equ,240,255,cv2.THRESH_BINARY_INV)
+            gray_t_cl1 = 255-gray_t_cl1
+            cv2.imshow("gray_t_cl1", gray_t_cl1)
             cv2.waitKey(0)
+            gray_t_cl1I = 255-gray_t_cl1I
+            cv2.imshow("gray_t_cl1I", gray_t_cl1I)
+            cv2.waitKey(0)
+            gray_t_cl2 = 255-gray_t_cl2
+            cv2.imshow("gray_t_cl2", gray_t_cl2)
+            cv2.waitKey(0)
+            gray_t_cl2I = 255-gray_t_cl2I
+            cv2.imshow("gray_t_cl2I", gray_t_cl2I)
+            cv2.waitKey(0)
+            gray_t2 = 255-gray_t
+            cv2.imshow("gray_t2", gray_t2)
+            cv2.waitKey(0)
+            for i in [0, 1, 2, 3, 4, h-4, h-3, h-2, h-1, h]:
+                for j in [0, 1, 2, 3, 4, w-4, w-3, w-2, w-1, w]:
+                    if gray_t2[i][j] == 255:
+                        gray_t2 = clearAll(gray_t2, i , j)
+            i += 1
              
         cv2.imshow("Image", gray)
         cv2.waitKey(0)
-        cv2.destroyAllWindows()
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    if cv2.waitKey(500) & 0xFF == ord('q'):
         break
         
 #End

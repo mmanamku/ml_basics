@@ -3,185 +3,128 @@ import cv2
 import cv2.cv as cv
 import argparse
 
-#debug
-import matplotlib.pyplot as plt
-
 #Command line argument passing
 parser = argparse.ArgumentParser()
-parser.add_argument('-f', '--file', help='Path to file')
+parser.add_argument('-f', '--file', help='path to file, leave if camera')
 args = vars(parser.parse_args())
-fileName = args['file']         #path to video file
-
-#Flags and Threshold values for comparison
-MODIFIED = [0, 0]               #normalization of eye state [left, right]
-PREVINIT = [0, 0]               #if eye state has a previous value
-PRESET = [0, 0]                 #if eye state initialized
-OBSEYE = 0                      #Eye for observation
-eyeDeviationLimit = 8           #Used for normalization of eye state; represented as % 
 
 #Initialization of variables
-realOpen = [0, 0]               #normal open    [left, right]
-realClose = [60, 60]            #normal closed  [left, right]
 eyeCascade = cv2.CascadeClassifier('haar/haarcascade_eye_tree_eyeglasses.xml')
 faceCascade = cv2.CascadeClassifier('haar/haarcascade_frontalface_alt2.xml')
-currentEye = [0, 0]             #current eye state
-obsEyePercent = [0, 0]          #previous eye state
-timer = 10                      #timer for modification
-globalTimer = 50                #utmost time for modification
-eyesLoc = []                    #list of eye locations
-faceLocation = {'x': 0, 'y': 0, 'w': 0, 'h': 0}
-facesLoc = []                   #list of face locations
+eyesLoc = []                                    #list of eyes
+facesLoc = []                                   #list of faces
 
-#Debug
-frameC = 0                      #frame count
-maxIns = [0, 0]                 #maximum values found in each frames
+#Debug & Reference
+frameC = 0                                      #Frame Number
 
 #Capture Video
-cap = cv2.VideoCapture(fileName)
-
-while(cap.isOpened()):
+if not args.get('file', False):
+    cap = cv2.VideoCapture(0)                   #camera
+else:
+    cap = cv2.VideoCapture(args['file'])        #video
+    
+while True:
     ret, frame = cap.read()
+    
+    #Debug | Reference
     frameC += 1
     
-    #no frame
-    if(frame == None):
+    #No frame
+    if(frame == None)
+        print("End of the Video Stream")
         break
-    
-    #preprocessing of image frame
-    (w, h) = frame.shape[:2]
-    #img = cv2.resize(frame, (500, 500*w/h))
-    #gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+    #Preprocessing of frame
+    (fw, fh) = frame.shape[:2]
+    frame = cv2.resize(frame, (500, 500*fw/fh))
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     
-    #face detection
-    faces = faceCascade.detectMultiScale(gray, 1.3, 5)
-    if(len(faces) == 0):
-        if(len(facesLoc) > 0):          #looking for previous face
-            #need to check standard deviation of frames, once found, append to faces and remove break
+    #Face detection
+    faces = faceCascade.detectMultiScale(gray, 1.2, 5)
+    if(len(faces) == 0):                        #no face detected
+        if(len(facesLoc) > 0):                  #any previous face data
+            ###NEED TO CHECK STANDARD DEVIATION TO FIND FACE
             print("Previous face present")
             print("No face detected")
-            break
+            continue
         else:
             print("No face detected")
-            break
-    for (x, y, w, h) in faces:
-        
-        #debug
-        cv2.rectangle(gray,(x,y),(x+w,y+h),(255,0,0),2)
-        
-        #storing face coordinates
-        if(len(facesLoc) > 1):
-            del facesLoc[0]             #remove unwanted datas
-        faceLocation = {'x': x, 'y': y, 'w': w, 'h': h}
-        facesLoc.append(faceLocation)
-        
-        #eye detection
+            continue
+    else:                                       #face detected
+        for (x, y, w, h) in faces:
+            
+            #Storing face coordinated
+            if(len(facesLoc) > 1):              #only 2 face data is required
+                del facesLoc[0]
+            facesLoc.append({'x': x, 'y': y, 'w': w, 'h': h})
+    
+    #Processing the face
+    for face in facesLoc:
+        x = face['x']
+        y = face['y']
+        w = face['w']
+        h = face['h']
         roi_gray = gray[y:y+h, x:x+w]
-        eyes = eyeCascade.detectMultiScale(roi_gray)
-        percents = []
         
-        #if no eyes found, predict it's location
-        if(len(eyes) == 0):
-            if(len(facesLoc) > 1):
+        #Eye Detection
+        eyes = eyeCascade.detectMultiScale(roi_gray)
+        if(len(eyes) == 0):                     #no eye detected
+            
+            #Predict Eye Location
+            if(len(facesLoc) > 1):              
                 if(len(eyesLoc) > 0):
                     for i in range(len(eyesLoc)):
-                        ex = eyesLoc[0]['x'] - (facesLoc[0]['x'] - faceLocation['x'])
-                        ey = eyesLoc[0]['y'] - (facesLoc[0]['y'] - faceLocation['y'])
-                        ew = eyesLoc[0]['w'] + eyesLoc[0]['w']*float(float(faceLocation['w'] - facesLoc[0]['w'])/float(facesLoc[0]['w'])) #% change
-                        eyesLoc.append({'x': ex, 'y': ey, 'w': int(ew), 'h': int(ew)})
-                        cv2.rectangle(roi_gray,(ex,ey),(ex+int(ew),ey+int(ew)),(255,0,0),2)
+                        ex = eyesLoc[0]['x'] - (facesLoc[0]['x'] - x)
+                        ey = eyesLoc[0]['y'] - (facesLoc[0]['y'] - y)
+                        ewh = int(h/4)        
+                        eyesLoc.append({'x': ex, 'y': ey, 'w': ewh, 'h': ewh})
                         del eyesLoc[0]
                 else:
-                    print("No eye present")
+                    print("No eye detected")
                     break
             else:
-                print("No eye present")
+                print("No eye detected")
                 break
-                
-        #take previous eye values
-        else:
-            eyesLoc = []
-            i = 0
+        else:                                   #eye detected
+            eyesLoc = []                        #flushing the buffer
+            eyeIndex = 0
             for (ex, ey, ew, eh) in eyes:
-                if i >= 2:
+                if eyeIndex >= 2:
                     break
-                eyesLoc.append({'x': ex, 'y': ey, 'w': ew, 'h': eh})
-                i += 1
-                
-                #debug
-                cv2.rectangle(roi_gray,(ex,ey),(ex+ew,ey+eh),(255,0,0),2)
-        
-        #processing
-        i = 0
+                eyesLoc.append({'x': ex, 'y': ey, 'w': (h/4), 'h': (h/4)})
+                eyeIndex += 1
+
+        #Processing the eye
+        percents = []
         for eye in eyesLoc:
-            roi_gray_e = roi_gray[eye['y']:eye['y']+eye['h'], eye['x']:eye['x']+eye['w']]
-            ret,gray_t = cv2.threshold(roi_gray_e,80,255,cv2.THRESH_BINARY)
-            gray_t = 255-gray_t            
+            ex = eye['x']
+            ey = eye['y']
+            ew = eye['w']
+            eh = eye['h']
             
-            #finding maximum width in histogram
-            start,end,maxIn,opened, dataFlag = 0, 0, 0, 0, 0
-            img_row_sum = np.sum(gray_t,axis=1).tolist()
-            for p in range(len(img_row_sum)):
-                if img_row_sum[p] > 0 and start == 0:
-                    opened = 1
-                    start = p-1
-                elif img_row_sum[p] <= 0 and opened == 1:
-                    end = p
-                    opened = 0
-                    dataFlag = 1
-                if dataFlag == 1 or p == len(img_row_sum)-1 :
-                    diff = end - start
-                    if maxIn <= diff and diff != 0:
-                        maxIn = diff
-                        start = 0
-                        end = 0
-                        
-            maxIns[i] = maxIn   
+            #Preprocessing
+            eye_gray = roi_gray[ey+(eh*0.30):ey+(eh*0.70), ex+(ew*0.15):ex+(ew*0.85)]
+            (h1, w1) = eye_gray.shape[:2]
+            eye_gray = cv2.resize(roi_gray_e, (100*w1/h1, 100))
+            (h1, w1) = eye_gray.shape[:2]
+            if(ex > (w/3)):                     #left/right eye
+                i = 1
+            else:
+                i = 0
+                
+#*****Now we have an gray eye image[left(1:real)/right(0:real)] with height 100*****#
             
-            #initializing real open eye         
-            if PRESET[i] == 0:
-                realOpen[i] = maxIn
-                PRESET[i] = 1
-                realClose[i] = 0.6*realOpen[i]
-            currentEye[i] = ((maxIn-realClose[i])*100)/(realOpen[i]-realClose[i])
+            #*******For white part of eye********#
             
-            #updating real closed eye
-            if currentEye[i] < 0:
-                realClose[i] = maxIn
-                currentEye[i] = ((maxIn-realClose[i])*100)/(realOpen[i]-realClose[i])
-            percents.append(currentEye[i])
+            #Histogram Equlization
+            gray_e = cv2.equalizeHist(eye_gray)
             
-            #modification of realOpen based on a timer
-            if MODIFIED[i] == 0 and globalTimer != 0:
-                if (PREVINIT[i] != 0):
-                    if (abs(currentEye[i] - obsEyePercent[i]) >= eyeDeviationLimit) and MODIFIED[i] == 0:
-                        if timer == 0:
-                            realOpen[i] = maxIn
-                            MODIFIED[i] = 1
-                        else:
-                            if OBSEYE == 0:     #need modifcation, change of eye state again not included
-                                obsEyePercent[i] = currentEye[i]
-                                OBSEYE = 1
-                    else:
-                        timer = 10
-                    
-                    timer -= 1
-                    globalTimer -= 1
-                else:
-                    obsEyePercent[i] = currentEye[i]
-                    PREVINIT[i] = 1
-            i += 1
+            #Thresholding
+            ret, gray_t = cv2.threshold(gray_e,240,255,cv2.THRESH_BINARY_INV)
+            gray_t = 255-gray_t                 #Inversion
             
-        #debug
-        cv2.imshow("Name", gray)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-        #plt.hist(gray_t.ravel(), 256, [0, 256])
-        #plt.show()
-        
-        #output
-        print(str(frameC) + " : " + str(int(min(percents))) + '%')
-    if cv2.waitKey(1000) & 0xFF == ord('q'):
-        break
-cap.release()
-cv2.destroyAllWindows()
+            #Eliminate unwanted white pixels in the boarder
+            for k in range(0, h1):
+                for l in range(0, w1):
+                    if(k<10 or k >= (h1-3)):
+                        clearFrame() 

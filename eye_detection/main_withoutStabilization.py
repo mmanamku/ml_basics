@@ -37,7 +37,6 @@ percentTrackerZT = []
 percentTrackerOZ = []
 percentTrackerOO = []
 percentTrackerOT = [] 
-avg = [[0,0,0],[0,0,0]]
 
 #Functions
 def clearFrame(image, x, y):                    #eliminate unwanted part iteratively
@@ -60,8 +59,7 @@ def clearFrame(image, x, y):                    #eliminate unwanted part iterati
         clearFrame(image, x-1, y+1)
     if (y-1) >= 0 and (x-1) >= 0 and image[x-1][y-1] == 255:
         clearFrame(image, x-1, y-1)
-
-#Eliminate unwanted white pixels in the boarder       
+       
 def eliminateBoarderData(image, left, right, top, bottom):
     (h, w) = image.shape[:2]
     for k in range(0, h):
@@ -120,17 +118,6 @@ def modifyOpen(currentValue, eye, option):
         else:
             obsEyePercent[eye][option] = currentEye[eye][option]
             PREVINIT[eye][option] = 1
-            
-def stabilize(tracker, eye, option):
-    third = currentEye[eye][option]
-    second = tracker.pop()
-    first = tracker.pop()
-    temp = [first, second, third]
-    average = sum(temp)/len(temp)
-    tracker.append(first)
-    tracker.append(average)
-    tracker.append(third)
-    return average
             
 #Capture Video
 if not args.get('file', False):
@@ -237,12 +224,16 @@ while True:
         
         #Thresholding
         ret, gray_et = cv2.threshold(gray_e,240,255,cv2.THRESH_BINARY_INV)
-        gray_et = 255-gray_et                               #inversion
-        eliminateBoarderData(gray_et, 3, 3, 10, 3)          #remove unwanted white parts
+        gray_et = 255-gray_et             #inversion
+        
+        #Eliminate unwanted white pixels in the boarder
+        eliminateBoarderData(gray_et, 3, 3, 10, 3)
                     
         #Finding Vertical Histogram
         gray_et_row_sum = np.sum(gray_et, axis=1).tolist()
-        sumOfWhite = sum(gray_et_row_sum)/255               #Find sum of white
+        
+        #Find sum of white
+        sumOfWhite = sum(gray_et_row_sum)/255
         currentEye[i][2] = (sumOfWhite*100)/(w1*h1) 
         
         #Finding max width of vertical histogram
@@ -315,26 +306,18 @@ while True:
     #        cv2.destroyAllWindows()
     
     #output
-    if frameC >= 3:
-        avg[0][0] = stabilize(percentTrackerZZ, 0, 0)
-        avg[0][1] = stabilize(percentTrackerZO, 0, 1)
-        avg[0][2] = stabilize(percentTrackerZT, 0, 2)
-        avg[1][0] = stabilize(percentTrackerOZ, 1, 0)
-        avg[1][1] = stabilize(percentTrackerOO, 1, 1)
-        avg[1][2] = stabilize(percentTrackerOT, 1, 2)
-    else:
-        percentTrackerZZ.append(currentEye[0][0])
-        percentTrackerZO.append(currentEye[0][1])
-        percentTrackerZT.append(currentEye[0][2])
-        percentTrackerOZ.append(currentEye[1][0])
-        percentTrackerOO.append(currentEye[1][1])
-        percentTrackerOT.append(currentEye[1][2])
-    cv2.putText(gray,"%d" %(frameC), (10,20), font, 0.5, (0,0,0), 1)
-    cv2.putText(gray,"%.2f"%currentEye[0][0]+"%"+"(%.2f) : %.2f"%(avg[0][0],currentEye[1][0])+"%"+"(%.2f)"%avg[1][0], (10,40), font, 0.5, (0,0,0), 1)
-    cv2.putText(gray,"%.2f"%currentEye[0][1]+"%"+"(%.2f) : %.2f"%(avg[0][1],currentEye[1][1])+"%"+"(%.2f)"%avg[1][1], (10,60), font, 0.5, (0,0,0), 1)
-    cv2.putText(gray,"%.2f"%currentEye[0][2]+"%"+"(%.2f) : %.2f"%(avg[0][2],currentEye[1][2])+"%"+"(%.2f)"%avg[1][2], (10,80), font, 0.5, (0,0,0), 1)
+    percentTrackerZZ.append(currentEye[0][0])
+    percentTrackerZO.append(currentEye[0][1])
+    percentTrackerZT.append(currentEye[0][2])
+    percentTrackerOZ.append(currentEye[1][0])
+    percentTrackerOO.append(currentEye[1][1])
+    percentTrackerOT.append(currentEye[1][2])
+    cv2.putText(gray,str(frameC), (10,20), font, 0.5, (0,0,0), 1)
+    cv2.putText(gray,str(currentEye[0][0])+'% : '+str(currentEye[1][0])+'%', (10,40), font, 0.5, (0,0,0), 1)
+    cv2.putText(gray,str(currentEye[0][1])+'% : '+str(currentEye[1][1])+'%', (10,60), font, 0.5, (0,0,0), 1)
+    cv2.putText(gray,str(currentEye[0][2])+'% : '+str(currentEye[1][2])+'%', (10,80), font, 0.5, (0,0,0), 1)
     cv2.imshow("Frame", gray)
-    if cv2.waitKey(0) & 0xFF == ord('q'):
+    if cv2.waitKey(100) & 0xFF == ord('q'):
         break
 
      
